@@ -1,6 +1,9 @@
-﻿opencv-python
-streamlit
+﻿streamlit
 streamlit-webrtc
 opencv-python-headless
-numpy
 av
+numpy
+scikit-learn
+joblib
+mediapipe
+requests
