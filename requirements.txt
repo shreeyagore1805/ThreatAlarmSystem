@@ -1,7 +1,5 @@
 streamlit
+streamlit-webrtc
 opencv-python-headless
+av
 numpy
-scikit-learn
-joblib
-mediapipe
-Pillow
