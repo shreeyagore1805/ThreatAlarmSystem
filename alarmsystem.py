@@ -120,14 +120,18 @@ if app_mode == "Live Webcam (Browser)":
 
 
   webrtc_streamer(
-      key="threat-alarm",
-      mode=WebRtcMode.SENDRECV,
-      video_processor_factory=ThreatAlarmProcessor,
-      media_stream_constraints={"video": True, "audio": False},
-      rtc_configuration={
-          "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
-      },
-      async_processing=True,
+    key="threat-alarm",
+    mode=WebRtcMode.SENDRECV,
+    video_processor_factory=ThreatAlarmProcessor,
+    media_stream_constraints={"video": True, "audio": False},
+    rtc_configuration={
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {"urls": ["stun:stun1.l.google.com:19302"]},
+            {"urls": ["stun:stun.cloudflare.com:3478"]},
+        ]
+    },
+    async_processing=True,
   )
 
 else:
