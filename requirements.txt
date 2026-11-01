@@ -3,4 +3,3 @@ streamlit-webrtc
 opencv-python-headless
 av
 numpy
-requests
