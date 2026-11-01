@@ -11,12 +11,11 @@ st.set_page_config(
 
 st.title("🚨 Smart Computer Vision Threat & Pacing Alarm System")
 st.markdown(
-    "**Academic Project Demo:** Continuous real-time video stream monitoring"
-    " for lingering and pacing threats."
+    "**Academic Project Demo:** Live browser camera stream with background"
+    " subtraction and threat tracking."
 )
 st.markdown(
-    "👉 **Instructions:** Click the **START** button below to begin the live"
-    " video stream. Stay in frame to test the 30-second threat alarm."
+    "👉 **Instructions:** Click **START** below and allow camera permissions."
 )
 
 
@@ -45,7 +44,7 @@ class ThreatAlarmProcessor:
 
     for c in contours:
       area = cv2.contourArea(c)
-      if area > 250:  # Sensitive contour threshold for fast motion tracking
+      if area > 250:  # Sensitive contour threshold for motion tracking
         motion_detected = True
         if area > max_area:
           max_area = area
@@ -99,7 +98,7 @@ class ThreatAlarmProcessor:
     return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 
-# Robust continuous live video streamer with multi-STUN fallback
+# Streamer configuration equipped with STUN + Free Open Relay TURN Servers to bypass firewalls
 webrtc_streamer(
     key="threat-alarm-live-feed",
     mode=WebRtcMode.SENDRECV,
@@ -108,8 +107,14 @@ webrtc_streamer(
     rtc_configuration={
         "iceServers": [
             {"urls": ["stun:stun.l.google.com:19302"]},
-            {"urls": ["stun:stun1.l.google.com:19302"]},
-            {"urls": ["stun:stun.cloudflare.com:3478"]},
+            {
+                "urls": [
+                    "turn:openrelay.metered.ca:80",
+                    "turn:openrelay.metered.ca:443",
+                ],
+                "username": "openrelayproject",
+                "credential": "openrelayproject",
+            },
         ]
     },
     async_processing=True,
