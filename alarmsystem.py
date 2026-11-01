@@ -1,7 +1,9 @@
 import time
+import av
 import cv2
 import numpy as np
 import streamlit as st
+from streamlit_webrtc import WebRtcMode, webrtc_streamer
 
 st.set_page_config(
     page_title="Threat & Pacing Alarm System", page_icon="🚨", layout="centered"
@@ -9,29 +11,29 @@ st.set_page_config(
 
 st.title("🚨 Smart Computer Vision Threat & Pacing Alarm System")
 st.markdown(
-    "**Academic Project Demo:** Real-time background subtraction and lingering"
-    " threat detection."
+    "**Academic Project Demo:** Continuous real-time video stream monitoring"
+    " for lingering and pacing threats."
+)
+st.markdown(
+    "👉 **Instructions:** Click the **START** button below to begin the live"
+    " video stream. Stay in frame to test the 30-second threat alarm."
 )
 
-# Use Streamlit's built-in native camera input (bypasses WebRTC server blocks completely!)
-camera_image = st.camera_input("Capture or Stream Live Camera Frame")
 
-# Initialize background subtractor in session state so it remembers history across frames
-if "bg_subtractor" not in st.session_state:
-  st.session_state.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-      history=300, varThreshold=30, detectShadows=True
-  )
-  st.session_state.person_start_time = None
+class ThreatAlarmProcessor:
 
-if camera_image is not None:
-  # Convert uploaded camera image buffer to OpenCV array
-  bytes_data = camera_image.getvalue()
-  np_arr = np.frombuffer(bytes_data, np.unint8 if hasattr(np, "unint8") else np.uint8)
-  frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+  def __init__(self):
+    self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
+        history=300, varThreshold=30, detectShadows=True
+    )
+    self.person_present_start_time = None
+    self.target_duration = 30.0  # 30 seconds threshold
 
-  if frame is not None:
-    # Process frame
-    fg_mask = st.session_state.bg_subtractor.apply(frame)
+  def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+    img = frame.to_ndarray(format="bgr24")
+
+    # Apply background subtraction
+    fg_mask = self.bg_subtractor.apply(img)
     _, thresh = cv2.threshold(fg_mask, 200, 255, cv2.THRESH_BINARY)
     contours, _ = cv2.findContours(
         thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
@@ -43,29 +45,28 @@ if camera_image is not None:
 
     for c in contours:
       area = cv2.contourArea(c)
-      if area > 500:
+      if area > 250:  # Sensitive contour threshold for fast motion tracking
         motion_detected = True
         if area > max_area:
           max_area = area
           best_box = cv2.boundingRect(c)
 
     current_time = time.time()
-    target_duration = 30.0
 
     if motion_detected:
-      if st.session_state.person_start_time is None:
-        st.session_state.person_start_time = current_time
+      if self.person_present_start_time is None:
+        self.person_present_start_time = current_time
 
-      elapsed = current_time - st.session_state.person_start_time
-      time_left = max(0, int(target_duration - elapsed))
+      elapsed = current_time - self.person_present_start_time
+      time_left = max(0, int(self.target_duration - elapsed))
 
       if best_box is not None:
         x, y, w, h = best_box
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 255), 2)
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 255), 2)
 
-      if elapsed >= target_duration:
+      if elapsed >= self.target_duration:
         cv2.putText(
-            frame,
+            img,
             "🚨 ALARM: LINGERING THREAT (>30s)! 🚨",
             (20, 50),
             cv2.FONT_HERSHEY_SIMPLEX,
@@ -73,14 +74,10 @@ if camera_image is not None:
             (0, 0, 255),
             3,
         )
-        st.error("🚨 CRITICAL ALARM: 30-Second Lingering Threat Detected!")
       else:
-        st.warning(
-            f"⚠️ Monitoring Target... Time left until alarm: {time_left}s"
-        )
         cv2.putText(
-            frame,
-            f"Monitoring... Time left: {time_left}s",
+            img,
+            f"Monitoring Lingering... Time left: {time_left}s",
             (20, 50),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,
@@ -88,10 +85,9 @@ if camera_image is not None:
             2,
         )
     else:
-      st.session_state.person_start_time = None
-      st.info("Status: Waiting for target movement...")
+      self.person_present_start_time = None
       cv2.putText(
-          frame,
+          img,
           "Status: Waiting for target...",
           (20, 50),
           cv2.FONT_HERSHEY_SIMPLEX,
@@ -100,10 +96,21 @@ if camera_image is not None:
           2,
       )
 
-    # Convert BGR back to RGB for clean Streamlit display
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    st.image(
-        frame_rgb,
-        channels="RGB",
-        caption="Live Processed Frame (Threat Analysis Active)",
-    )
+    return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+
+# Robust continuous live video streamer with multi-STUN fallback
+webrtc_streamer(
+    key="threat-alarm-live-feed",
+    mode=WebRtcMode.SENDRECV,
+    video_processor_factory=ThreatAlarmProcessor,
+    media_stream_constraints={"video": True, "audio": False},
+    rtc_configuration={
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {"urls": ["stun:stun1.l.google.com:19302"]},
+            {"urls": ["stun:stun.cloudflare.com:3478"]},
+        ]
+    },
+    async_processing=True,
+)
