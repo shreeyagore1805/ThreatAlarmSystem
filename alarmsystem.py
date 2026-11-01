@@ -1,7 +1,6 @@
 import time
 import av
 import cv2
-import requests
 import streamlit as st
 from streamlit_webrtc import WebRtcMode, VideoProcessorBase, webrtc_streamer
 
@@ -12,26 +11,8 @@ st.set_page_config(
 )
 
 st.title("🚨 Smart Computer Vision Threat & Pacing Alarm System")
-st.markdown("**Academic Project Demo:** Live browser camera stream with background subtraction and lingering threat tracking.")
+st.markdown("**Academic Project Demo:** Live browser camera stream with background subtraction and threat tracking.")
 st.markdown("👉 **Instructions:** Click **START** below and allow camera permissions.")
-
-# Helper function to fetch TURN credentials securely from Streamlit Secrets
-@st.cache_data(ttl=3600)
-def get_ice_servers():
-    fallback = [{"urls": ["stun:stun.l.google.com:19302"]}]
-    try:
-        app = st.secrets["METERED_APP"]
-        key = st.secrets["METERED_API_KEY"]
-        r = requests.get(
-            f"https://{app}.metered.live/api/v1/turn/credentials",
-            params={"apiKey": key},
-            timeout=10,
-        )
-        r.raise_for_status()
-        return fallback + r.json()
-    except Exception as e:
-        st.warning(f"TURN not configured properly, using STUN only ({e})")
-        return fallback
 
 class ThreatAlarmProcessor(VideoProcessorBase):
     def __init__(self):
@@ -96,12 +77,16 @@ class ThreatAlarmProcessor(VideoProcessorBase):
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# Streamlit WebRTC configuration with STUN + TURN credentials
+# Robust public ICE configuration to bypass Streamlit Cloud firewalls
 webrtc_streamer(
     key="threat-alarm-live-feed",
     mode=WebRtcMode.SENDRECV,
     video_processor_factory=ThreatAlarmProcessor,
     media_stream_constraints={"video": True, "audio": False},
-    rtc_configuration={"iceServers": get_ice_servers()},
+    rtc_configuration={
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}
+        ]
+    },
     async_processing=True,
 )
