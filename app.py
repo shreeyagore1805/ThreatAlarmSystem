@@ -13,7 +13,7 @@ bg_subtractor = cv2.createBackgroundSubtractorMOG2(
 TARGET_DURATION = 10.0  # Lingering threshold (seconds)
 RESET_DURATION = 10.0   # Clear cutoff
 
-# Global state variables for the stream
+# Global state variables
 person_present_start_time = None
 empty_screen_start_time = None
 alarm_triggered = False
@@ -24,15 +24,16 @@ INDEX_PAGE = """
 <head>
     <title>Threat & Pacing Alarm System</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; color: #333; margin-top: 30px; }
-        .video-container { display: inline-block; border: 4px solid #333; border-radius: 8px; overflow: hidden; background: #000; }
+        body { font-family: Arial, sans-serif; text-align: center; background: #111; color: #eee; margin-top: 30px; }
+        .video-container { display: inline-block; border: 4px solid #444; border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
         img { display: block; max-width: 100%; height: auto; }
-        h1 { color: #d9534f; }
+        h1 { color: #ff4d4d; }
+        p { color: #aaa; }
     </style>
 </head>
 <body>
     <h1>🚨 Smart Computer Vision Threat & Pacing Alarm System</h1>
-    <p><b>Academic Project Demo:</b> Live cloud deployment via Render (No WebRTC errors!)</p>
+    <p><b>Cloud Deployment Simulation (No Webcam Required):</b> Running live background subtraction & threat tracking.</p>
     <div class="video-container">
         <img src="/video_feed" width="640" height="480">
     </div>
@@ -40,26 +41,31 @@ INDEX_PAGE = """
 </html>
 """
 
-def gen_frames():
+def generate_simulated_frames():
     global person_present_start_time, empty_screen_start_time, alarm_triggered
     
-    # Open default video capture stream (or video source)
-    cap = cv2.VideoCapture(0)
+    # Create a blank canvas to simulate a surveillance frame
+    canvas_width, canvas_height = 640, 480
     
-    # Fallback simulation if cloud container doesn't have physical camera access
-    has_cam = cap.isOpened()
+    # Simulating a moving object (acting like a person walking into frame)
+    obj_x, obj_y = 100, 200
+    direction = 5
 
     while True:
-        if has_cam:
-            success, frame = cap.read()
-            if not success:
-                break
-        else:
-            # Placeholder frame if running headless in a cloud environment without a webcam
-            frame = np.zeros((480, 640, 3), dtype=np.uint8)
-            cv2.putText(frame, "Cloud Container (No Webcam Attached)", (50, 240), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        # Create static background frame
+        frame = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
+        cv2.putText(frame, "CLOUD SURVEILLANCE FEED", (20, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
 
+        # Simulate movement across the screen to trigger OpenCV background subtraction
+        obj_x += direction
+        if obj_x > 500 or obj_x < 100:
+            direction *= -1  # Reverse direction (pacing simulation)
+
+        # Draw a moving simulated "person/threat block"
+        cv2.rectangle(frame, (obj_x, obj_y), (obj_x + 60, obj_y + 160), (200, 200, 200), -1)
+
+        # Apply your exact background subtraction logic
         fg_mask = bg_subtractor.apply(frame)
         _, thresh = cv2.threshold(fg_mask, 200, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -91,11 +97,11 @@ def gen_frames():
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 255), 2)
 
             if elapsed >= TARGET_DURATION:
-                cv2.putText(frame, "ALARM: LINGERING THREAT (>10s)!", (20, 50),
+                cv2.putText(frame, "ALARM: LINGERING THREAT (>10s)!", (20, 70),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 3)
                 alarm_triggered = True
             else:
-                cv2.putText(frame, f"Monitoring Target... Time left: {time_left}s", (20, 50),
+                cv2.putText(frame, f"Monitoring Target... Time left: {time_left}s", (20, 70),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
         else:
             person_present_start_time = None
@@ -106,21 +112,24 @@ def gen_frames():
                 empty_elapsed = current_time - empty_screen_start_time
                 empty_time_left = max(0, int(RESET_DURATION - empty_elapsed))
 
-                cv2.putText(frame, f"THREAT FLED! Resetting in: {empty_time_left}s", (20, 50),
+                cv2.putText(frame, f"THREAT FLED! Resetting in: {empty_time_left}s", (20, 70),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
                 if empty_elapsed >= RESET_DURATION:
                     alarm_triggered = False
                     empty_screen_start_time = None
             else:
-                cv2.putText(frame, "Status: Waiting for target...", (20, 50),
+                cv2.putText(frame, "Status: Waiting for target...", (20, 70),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-        # Encode frame as JPEG to stream via HTTP
+        # Encode frame as JPEG to stream via HTTP to the browser
         ret, buffer = cv2.imencode('.jpg', frame)
         frame_bytes = buffer.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        
+        # Control stream frame rate (~30 fps simulation)
+        time.sleep(0.03)
 
 @app.route('/')
 def index():
@@ -128,7 +137,7 @@ def index():
 
 @app.route('/video_feed')
 def video_feed():
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(generate_simulated_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
