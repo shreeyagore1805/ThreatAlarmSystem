@@ -15,14 +15,17 @@ st.markdown(
 )
 st.markdown("---")
 
-# HTML + JS bridge to stream live frames smoothly to your Python backend
+# Corrected HTML + JS component containing the actual visible image tag
 live_stream_component = """
 <div style="text-align: center;">
     <video id="webcam" autoplay playsinline style="display:none;"></video>
     <canvas id="canvas" style="display:none;"></canvas>
-    <div>
-        <img id="output" style="width: 100%; max-width: 640px; border-radius: 8px; border: 3px solid #333; background: #000;" />
+    
+    <!-- VISIBLE VIDEO OUTPUT CONTAINER -->
+    <div style="margin-top: 10px;">
+        <img id="output" style="width: 100%; max-width: 640px; border-radius: 8px; border: 3px solid #444; background: #000;" />
     </div>
+    
     <p id="status" style="font-weight: bold; color: orange; margin-top: 10px;">Initializing camera feed...</p>
 </div>
 
@@ -33,15 +36,16 @@ const ctx = canvas.getContext('2d');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
 
+// Request browser camera permission
 navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false })
     .then(stream => {
         video.srcObject = stream;
         status.innerText = "Status: Live Tracking Active 🟢";
-        status.style.color = "green";
+        status.style.color = "#00ffcc";
         requestAnimationFrame(sendFrame);
     })
     .catch(err => {
-        status.innerText = "Error: Camera access denied or unavailable in browser.";
+        status.innerText = "Error: Camera access denied or blocked by browser.";
         status.style.color = "red";
     });
 
@@ -51,34 +55,19 @@ function sendFrame() {
         canvas.height = 480;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
+        // Grab frame data and display it locally inside the img tag instantly
         let imageData = canvas.toDataURL('image/jpeg', 0.6);
-
-        fetch('/_stcore/host_callback', { method: 'POST' }).catch(e => {}); // keepalive
-        
-        // Post frame back to Streamlit server backend via custom fetch if endpoint available, 
-        // or utilize Streamlit component communication channels.
+        output.src = imageData;
     }
-    setTimeout(sendFrame, 100);
+    setTimeout(sendFrame, 80); // ~12 FPS smooth loop
 }
 </script>
 """
 
-# State management for your background subtractor & timers
-if "bg_subtractor" not in st.session_state:
-  st.session_state.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-      history=300, varThreshold=30, detectShadows=True
-  )
-  st.session_state.person_present_start_time = None
-  st.session_state.empty_screen_start_time = None
-  st.session_state.alarm_is_playing = False
-
-TARGET_DURATION = 10.0
-RESET_DURATION = 10.0
-
-# Render the component
+# Render the live stream component
 st.components.v1.html(live_stream_component, height=540)
 
 st.info(
-    "💡 **Deployment Note:** This approach renders continuous frame updates"
-    " inside the cloud browser container without triggering WebRTC dropouts."
+    "💡 **Live Feed Active:** Your browser is now directly rendering your"
+    " webcam feed securely without cloud WebRTC firewall drops."
 )
