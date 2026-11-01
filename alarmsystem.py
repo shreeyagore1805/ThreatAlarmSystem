@@ -1,60 +1,43 @@
-import os
 import time
 import cv2
 import numpy as np
+import streamlit as st
+from streamlit_webrtc import WebRtcMode, webrtc_streamer
+import av
 
-try:
-  import winsound
+st.set_page_config(
+    page_title="Threat & Pacing Alarm System", page_icon="🚨", layout="centered"
+)
 
-  has_winsound = True
-except ImportError:
-  has_winsound = False
+st.title("🚨 Smart Computer Vision Threat & Pacing Alarm System")
+st.markdown(
+    "**Academic Project Demo:** This application uses computer vision and"
+    " background subtraction to detect suspicious lingering and pacing"
+    " behavior in real-time without storing facial data."
+)
+st.markdown(
+    "👉 **How to test:** Click **'START'** below, allow camera access, and"
+    " stay in front of your camera for **30 seconds** to trigger the threat"
+    " alert."
+)
 
 
-def play_alarm():
-  """Starts playing the custom alarm loop asynchronously."""
-  audio_path = "alarm.wav"
-  if os.path.exists(audio_path):
-    winsound.PlaySound(
-        audio_path, winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP
+# Define the Video Processor for WebRTC browser streaming
+class ThreatAlarmProcessor:
+
+  def __init__(self):
+    self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
+        history=300, varThreshold=30, detectShadows=True
     )
-  else:
-    # Fallback if wav is missing
-    winsound.Beep(2500, 1000)
+    self.person_present_start_time = None
+    self.target_duration = 30.0  # 30 seconds threshold
+    self.alarm_active = False
 
+  def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+    img = frame.to_ndarray(format="bgr24")
 
-def stop_alarm():
-  """Stops the alarm sound."""
-  if has_winsound:
-    winsound.PlaySound(None, winsound.SND_ASYNC)
-
-
-def main():
-  cap = cv2.VideoCapture(0)
-  if not cap.isOpened():
-    print("Error: Could not open webcam.")
-    return
-
-  bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-      history=300, varThreshold=30, detectShadows=True
-  )
-
-  print("--- SMART AUTO-RESET THREAT ALARM (V7) ---")
-  print("System active. Monitoring for 30s linger, auto-stops 10s after clear.")
-
-  person_present_start_time = None
-  empty_screen_start_time = None
-
-  alarm_is_playing = False
-  TARGET_DURATION = 10.0  # 30 seconds lingering threshold
-  RESET_DURATION = 10.0  # 10 seconds empty screen cutoff
-
-  while True:
-    ret, frame = cap.read()
-    if not ret:
-      break
-
-    fg_mask = bg_subtractor.apply(frame)
+    # Apply background subtraction
+    fg_mask = self.bg_subtractor.apply(img)
     _, thresh = cv2.threshold(fg_mask, 200, 255, cv2.THRESH_BINARY)
     contours, _ = cv2.findContours(
         thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
@@ -75,93 +58,67 @@ def main():
     current_time = time.time()
 
     if motion_detected:
-      # Reset the empty screen timer since someone is still there
-      empty_screen_start_time = None
+      if self.person_present_start_time is None:
+        self.person_present_start_time = current_time
 
-      if person_present_start_time is None:
-        person_present_start_time = current_time
-
-      elapsed = current_time - person_present_start_time
-      time_left = max(0, int(TARGET_DURATION - elapsed))
+      elapsed = current_time - self.person_present_start_time
+      time_left = max(0, int(self.target_duration - elapsed))
 
       if best_box is not None:
         x, y, w, h = best_box
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 255), 2)
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 255), 2)
 
-      # Check if 30 seconds of lingering reached
-      if elapsed >= TARGET_DURATION:
+      if elapsed >= self.target_duration:
         cv2.putText(
-            frame,
+            img,
             "🚨 ALARM: LINGERING THREAT (>30s)! 🚨",
             (20, 50),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
+            0.7,
             (0, 0, 255),
             3,
         )
-        if not alarm_is_playing:
-          play_alarm()
-          alarm_is_playing = True
+        self.alarm_active = True
       else:
         cv2.putText(
-            frame,
-            f"Monitoring Target... Time left: {time_left}s",
+            img,
+            f"Monitoring Lingering... Time left: {time_left}s",
             (20, 50),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
+            0.6,
             (0, 255, 255),
             2,
         )
+        self.alarm_active = False
     else:
-      # --- SCREEN IS EMPTY (NO MOTION) ---
-      person_present_start_time = None  # Reset timer for current person
+      self.person_present_start_time = None
+      self.alarm_active = False
+      cv2.putText(
+          img,
+          "Status: Waiting for target...",
+          (20, 50),
+          cv2.FONT_HERSHEY_SIMPLEX,
+          0.6,
+          (0, 255, 0),
+          2,
+      )
 
-      if alarm_is_playing:
-        # If alarm is currently going off, track how long the screen has been empty
-        if empty_screen_start_time is None:
-          empty_screen_start_time = current_time
-
-        empty_elapsed = current_time - empty_screen_start_time
-        empty_time_left = max(0, int(RESET_DURATION - empty_elapsed))
-
-        cv2.putText(
-            frame,
-            f"🚨 THREAT FLED! Stopping alarm in: {empty_time_left}s",
-            (20, 50),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 0, 255),
-            2,
-        )
-
-        # If empty for 10 full seconds, shut off alarm and fully reset system
-        if empty_elapsed >= RESET_DURATION:
-          stop_alarm()
-          alarm_is_playing = False
-          empty_screen_start_time = None
-          print(
-              "\n[INFO] Area clear for 10s. Alarm stopped, system re-armed."
-          )
-      else:
-        cv2.putText(
-            frame,
-            "Status: Waiting for target...",
-            (20, 50),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 255, 0),
-            2,
-        )
-
-    cv2.imshow("Pacing & Lingering Threat Alarm", frame)
-
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-      stop_alarm()
-      break
-
-  cap.release()
-  cv2.destroyAllWindows()
+    return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 
-if __name__ == "__main__":
-  main()
+# Streamlit WebRTC component to render camera stream in the browser
+webrtc_streamer(
+    key="threat-alarm",
+    mode=WebRtcMode.SENDRECV,
+    video_processor_factory=ThreatAlarmProcessor,
+    media_stream_constraints={"video": True, "audio": False},
+    async_processing=True,
+)
+
+st.markdown("---")
+st.markdown("### 📊 System Specifications")
+st.col1, st.col2 = st.columns(2)
+with st.col1:
+  st.metric(label="Dwell Threshold", value="30 Seconds")
+with st.col2:
+  st.metric(label="Privacy Compliance", value="Face-Free / Zero Storage")
