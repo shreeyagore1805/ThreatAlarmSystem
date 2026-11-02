@@ -155,7 +155,7 @@ webrtc_streamer(
     key="threat-alarm-live-feed",
     mode=WebRtcMode.SENDRECV,
     video_processor_factory=ThreatAlarmProcessor,
-    media_stream_constraints={"video": True, "audio": False},
+    media_stream_constraints={"video": True, "audio": True},
     rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
     async_processing=True,
 )
