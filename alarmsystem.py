@@ -14,32 +14,9 @@ st.set_page_config(
 st.title("🚨 Smart Computer Vision Threat & Pacing Alarm System")
 st.markdown(
     "**Academic Project Demo:** Live browser camera stream with background "
-    "subtraction, lingering detection, and local audio alarm."
+    "subtraction, lingering detection, and visual alerts."
 )
 st.markdown("👉 **Instructions:** Click **START** below and allow camera permissions.")
-
-# Embedded JavaScript audio trigger pointing to your repository's alarm.wav file
-alarm_js_trigger = """
-<script>
-function playAlarmSound() {
-    let audio = document.getElementById("alarmAudio");
-    if (audio && audio.paused) {
-        audio.play().catch(e => console.log("Audio waiting for user interaction"));
-    }
-}
-function stopAlarmSound() {
-    let audio = document.getElementById("alarmAudio");
-    if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-    }
-}
-</script>
-<audio id="alarmAudio" loop>
-    <source src="https://www.soundjay.com/buttons/sounds/beep-01a.mp3" type="audio/mp3">
-</audio>
-"""
-st.components.v1.html(alarm_js_trigger, height=0)
 
 
 class ThreatAlarmProcessor(VideoProcessorBase):
@@ -146,8 +123,7 @@ class ThreatAlarmProcessor(VideoProcessorBase):
               2,
           )
 
-      # Store state in session so the main script can trigger JS sound
-      st.session_state["alarm_active"] = self.alarm_active
+      # NOTE: Removed st.session_state updates here to prevent stream reloads.
 
       return av.VideoFrame.from_ndarray(img, format="bgr24")
 
