@@ -107,7 +107,7 @@ class ThreatAlarmProcessor(VideoProcessorBase):
               img,
               f"Monitoring Target... Time left: {time_left}s",
               (20, 40),
-5              cv2.FONT_HERSHEY_SIMPLEX,
+              cv2.FONT_HERSHEY_SIMPLEX,
               0.6,
               (0, 255, 255),
               2,
