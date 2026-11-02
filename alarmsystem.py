@@ -157,15 +157,15 @@ webrtc_streamer(
     key="threat-alarm-live-feed",
     mode=WebRtcMode.SENDRECV,
     video_processor_factory=ThreatAlarmProcessor,
-    media_stream_constraints={"video": True, "audio": False},
-    rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+    media_stream_constraints={
+        "video": {"width": {"ideal": 640}, "height": {"ideal": 480}},
+        "audio": False,
+    },
+    rtc_configuration={
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {"urls": ["stun:stun1.l.google.com:19302"]},
+        ]
+    },
     async_processing=True,
 )
-
-# Native Streamlit audio trigger when alarm becomes active
-if st.session_state.get("alarm_active", False):
-  st.audio("alarm.wav", format="audio/wav", autoplay=True)
-else:
-  st.components.v1.html(
-      "<script>stopAlarmSound();</script>", height=0
-  )
