@@ -36,7 +36,7 @@ function stopAlarmSound() {
 }
 </script>
 <audio id="alarmAudio" loop>
-    <source src="alarm.wav" type="audio/wav">
+    <source src="https://www.soundjay.com/buttons/sounds/beep-01a.mp3" type="audio/mp3">
 </audio>
 """
 st.components.v1.html(alarm_js_trigger, height=0)
