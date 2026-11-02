@@ -127,6 +127,8 @@ class ThreatAlarmProcessor(VideoProcessorBase):
 
       return av.VideoFrame.from_ndarray(img, format="bgr24")
 
+if "alarm_triggered" not in st.session_state:
+    st.session_state.alarm_triggered = False
 
 # Streamer configuration
 webrtc_streamer(
@@ -135,7 +137,7 @@ webrtc_streamer(
     video_processor_factory=ThreatAlarmProcessor,
     media_stream_constraints={
         "video": {"width": {"ideal": 640}, "height": {"ideal": 480}},
-        "audio": False,
+        "audio": False,  # Keep this False since you're just playing an external sound file
     },
     rtc_configuration={
         "iceServers": [
