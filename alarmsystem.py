@@ -162,11 +162,9 @@ webrtc_streamer(
     async_processing=True,
 )
 
-# 2. Trigger the local JS audio function based on processor state
+# Native Streamlit audio trigger when alarm becomes active
 if st.session_state.get("alarm_active", False):
-  st.components.v1.html(
-      "<script>playAlarmSound();</script>", height=0
-  )
+  st.audio("alarm.wav", format="audio/wav", autoplay=True)
 else:
   st.components.v1.html(
       "<script>stopAlarmSound();</script>", height=0
