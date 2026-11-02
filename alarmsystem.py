@@ -14,16 +14,16 @@ st.set_page_config(
 st.title("🚨 Smart Computer Vision Threat & Pacing Alarm System")
 st.markdown(
     "**Academic Project Demo:** Live browser camera stream with background "
-    "subtraction, lingering detection, and audio alarm."
+    "subtraction, lingering detection, and local audio alarm."
 )
 st.markdown("👉 **Instructions:** Click **START** below and allow camera permissions.")
 
-# Embedded JavaScript audio trigger for browser-side alarm playback
+# Embedded JavaScript audio trigger pointing to your repository's alarm.wav file
 alarm_js_trigger = """
 <script>
 function playAlarmSound() {
     let audio = document.getElementById("alarmAudio");
-    if (audio) {
+    if (audio && audio.paused) {
         audio.play().catch(e => console.log("Audio waiting for user interaction"));
     }
 }
@@ -36,7 +36,7 @@ function stopAlarmSound() {
 }
 </script>
 <audio id="alarmAudio" loop>
-    <source src="https://www.soundjay.com/buttons/sounds/beep-01a.mp3" type="audio/mp3">
+    <source src="alarm.wav" type="audio/wav">
 </audio>
 """
 st.components.v1.html(alarm_js_trigger, height=0)
@@ -89,7 +89,6 @@ class ThreatAlarmProcessor(VideoProcessorBase):
 
         if best_box is not None:
           x, y, w, h = best_box
-          # Draw yellow bounding box around the target
           cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 255), 2)
 
         if elapsed >= self.target_duration:
@@ -108,7 +107,7 @@ class ThreatAlarmProcessor(VideoProcessorBase):
               img,
               f"Monitoring Target... Time left: {time_left}s",
               (20, 40),
-              cv2.FONT_HERSHEY_SIMPLEX,
+5              cv2.FONT_HERSHEY_SIMPLEX,
               0.6,
               (0, 255, 255),
               2,
@@ -147,15 +146,28 @@ class ThreatAlarmProcessor(VideoProcessorBase):
               2,
           )
 
+      # Store state in session so the main script can trigger JS sound
+      st.session_state["alarm_active"] = self.alarm_active
+
       return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 
-# Streamer configuration using reliable STUN server to bypass firewall blocks
+# Streamer configuration
 webrtc_streamer(
     key="threat-alarm-live-feed",
     mode=WebRtcMode.SENDRECV,
     video_processor_factory=ThreatAlarmProcessor,
-    media_stream_constraints={"video": True, "audio": True},
+    media_stream_constraints={"video": True, "audio": False},
     rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
     async_processing=True,
 )
+
+# 2. Trigger the local JS audio function based on processor state
+if st.session_state.get("alarm_active", False):
+  st.components.v1.html(
+      "<script>playAlarmSound();</script>", height=0
+  )
+else:
+  st.components.v1.html(
+      "<script>stopAlarmSound();</script>", height=0
+  )
